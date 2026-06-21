@@ -186,6 +186,12 @@
     color: #fff;
     border-bottom-right-radius: 4px;
   }
+  .bubble-a a {
+    color: #fff;
+    text-decoration: underline;
+    word-break: break-all;
+  }
+  .bubble-a a:hover { opacity: 0.85; }
   .empty-state {
     text-align: center;
     color: #9ca3af;
@@ -426,6 +432,41 @@ function escapeHtml(str) {
   return str.replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
+// 回答文中の URL（http/https）をクリック可能なリンクへ変換する
+// 安全な URI 文字のみを URL の一部として扱うため、URL に隣接する日本語の文章や
+// 全角の句読点・かっこは自然に URL から除外される
+const URL_PATTERN = /https?:\/\/[-\w.~:/?#\[\]@!$&'()*+,;=%]+/g;
+
+function linkifyText(rawText) {
+  let result = '';
+  let lastIndex = 0;
+
+  for (const match of rawText.matchAll(URL_PATTERN)) {
+    const offset = match.index;
+    result += escapeHtml(rawText.slice(lastIndex, offset));
+
+    let url = match[0];
+    let trailing = '';
+    const trailingPunct = url.match(/[).,;:!?]+$/);
+    if (trailingPunct) {
+      trailing = trailingPunct[0];
+      url = url.slice(0, url.length - trailing.length);
+      // 閉じかっこが URL 内の開きかっこに対応する場合は URL 側に戻す
+      while (trailing.startsWith(')') && (url.split('(').length - 1) > (url.split(')').length - 1)) {
+        url += ')';
+        trailing = trailing.slice(1);
+      }
+    }
+
+    const safeUrl = escapeHtml(url);
+    result += `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>${escapeHtml(trailing)}`;
+    lastIndex = offset + match[0].length;
+  }
+
+  result += escapeHtml(rawText.slice(lastIndex));
+  return result;
+}
+
 function populateSelect(id, items, defaultLabel) {
   const sel = document.getElementById(id);
   const opt0 = document.createElement('option');
@@ -505,7 +546,7 @@ function renderResults(results, query, catFilter, propFilter) {
         <div class="bubble bubble-q">${escapeHtml(e.q)}</div>
       </div>
       <div class="bubble-row row-a">
-        <div class="bubble bubble-a">${escapeHtml(e.a)}</div>
+        <div class="bubble bubble-a">${linkifyText(e.a)}</div>
         <div class="avatar avatar-a">&#127968;</div>
       </div>
     </div>`;
